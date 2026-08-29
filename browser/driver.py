@@ -67,7 +67,7 @@ class WebAgentDriver:
 
     # 回复区常见噪声文本（反馈条/推荐追问/时间戳），抽取时跳过
     NOISE_RE = re.compile(
-        r"^(you are providing feedback|正在提供反馈|请提供反馈|复制|重新生成|收起|展开|"
+        r"^(you are providing feedback|claude responded:|正在提供反馈|请提供反馈|复制|重新生成|收起|展开|"
         r"分享|点赞|点踩|举报|继续|换一个|换一批|今天 \d{1,2}:\d{2}|昨天 \d{1,2}:\d{2}|"
         r"\d{4}-\d{2}-\d{2})",
         re.IGNORECASE,

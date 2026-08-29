@@ -20,7 +20,8 @@ class BrowserPool:
         # groups: {"private": {"profile": <dir>, "proxy": <url|null>}, ...}
         self.groups: dict[str, dict] = {
             name: {"profile": os.path.abspath(cfg["profile"]),
-                   "proxy": cfg.get("proxy")}
+                   "proxy": cfg.get("proxy"),
+                   "user_agent": cfg.get("user_agent")}
             for name, cfg in b.get(
                 "groups", {"normal": {"profile": "./ff_profile", "proxy": None}}
             ).items()
@@ -40,6 +41,8 @@ class BrowserPool:
                       "viewport": {"width": 1600, "height": 900}}  # 宽视口避免站点切移动端布局
             if g["proxy"]:  # Firefox 不吃系统代理，必须显式指定
                 kwargs["proxy"] = {"server": g["proxy"]}
+            if g.get("user_agent"):  # 组级 UA 伪装（配合导入的 cf_clearance）
+                kwargs["user_agent"] = g["user_agent"]
             self.contexts[name] = await launcher.launch_persistent_context(
                 g["profile"], **kwargs
             )

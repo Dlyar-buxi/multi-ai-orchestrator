@@ -1,51 +1,41 @@
-"""检查 FirefoxFQ profile 的 claude.ai cookie 并导入框架 private profile
-用法: python import_claude_cookies.py            # 检查+导入
+"""将 Cookie-Editor 导出的 JSON 注入框架 private profile
+用法: python import_claude_cookies.py
 """
-import os
-import shutil
-import sqlite3
-import tempfile
+import asyncio
+import json
 
-FFQ_COOKIES = r"D:\Firefox download\FirefoxFQ\FirefoxFQ\Firefox\Profile\cookies.sqlite"
+JSON_PATH = r"D:\diedai\claude_cookies.json"
 
-
-def read_cookies():
-    tmp = os.path.join(tempfile.gettempdir(), "ffq_cookies.db")
-    shutil.copy2(FFQ_COOKIES, tmp)
-    # Firefox 运行中，未合并的 WAL 里可能有新 cookie，一并复制
-    for ext in ("-wal", "-shm"):
-        src = FFQ_COOKIES + ext
-        if os.path.exists(src):
-            shutil.copy2(src, tmp + ext)
-    con = sqlite3.connect(tmp)
-    con.row_factory = sqlite3.Row
-    rows = con.execute(
-        "SELECT name, value, host, path, expiry, isSecure, isHttpOnly, sameSite "
-        "FROM moz_cookies WHERE host LIKE '%claude.ai%'"
-    ).fetchall()
-    con.close()
-    print(f"FirefoxFQ 中 claude.ai cookies: {len(rows)}")
-    for r in rows:
-        v = r["value"]
-        print(f"  {r['name']:<20} len={len(v)} host={r['host']}")
-    return rows
+SAME_SITE = {
+    "no_restriction": "None",
+    "lax": "Lax",
+    "strict": "Strict",
+    "unspecified": "Lax",
+}
 
 
-def to_pw_cookie(r):
-    same_site_map = {0: "None", 1: "Lax", 2: "Strict"}
-    c = {
-        "name": r["name"],
-        "value": r["value"],
-        "domain": r["host"],
-        "path": r["path"] or "/",
-        "expires": r["expiry"] or -1,
-        "secure": bool(r["isSecure"]),
-        "httpOnly": bool(r["isHttpOnly"]),
-    }
-    ss = same_site_map.get(r["sameSite"] if r["sameSite"] is not None else 0)
-    if ss:
-        c["sameSite"] = ss
-    return c
+def load_cookies():
+    with open(JSON_PATH, encoding="utf-8") as f:
+        raw = json.load(f)
+    out = []
+    for c in raw:
+        pw = {
+            "name": c["name"],
+            "value": c["value"],
+            "domain": c["domain"],
+            "path": c.get("path") or "/",
+            "secure": bool(c.get("secure")),
+            "httpOnly": bool(c.get("httpOnly")),
+        }
+        if c.get("session"):
+            pw["expires"] = -1
+        else:
+            pw["expires"] = int(c.get("expirationDate") or -1)
+        ss = SAME_SITE.get(str(c.get("sameSite", "")).lower())
+        if ss:
+            pw["sameSite"] = ss
+        out.append(pw)
+    return out
 
 
 async def inject(cookies):
@@ -59,21 +49,25 @@ async def inject(cookies):
         ctx = pool.contexts["private"]
         await ctx.add_cookies(cookies)
         print(f"已注入 {len(cookies)} 个 cookie 到 private profile")
+        # 立即验证登录态
+        page = await ctx.new_page()
+        await page.goto("https://claude.ai/new", wait_until="domcontentloaded", timeout=45000)
+        await asyncio.sleep(6)
+        print(f"URL: {page.url}")
+        print(f"标题: {await page.title()}")
+        n_login = await page.locator("text=Log in").count()
+        print(f"出现Log in(未登录标志): {n_login}")
     finally:
-        await pool.stop()  # 关闭时持久化到 profile
+        await pool.stop()  # 关闭时持久化
 
 
 def main():
-    rows = read_cookies()
-    if not rows:
-        print("没有可导入的 cookie")
-        return
-    names = {r["name"] for r in rows}
-    if "sessionKey" not in names:
-        print("警告: 未发现 sessionKey（可能未登录）")
-    cookies = [to_pw_cookie(r) for r in rows]
-    import asyncio
-
+    cookies = load_cookies()
+    print(f"从 JSON 读取 {len(cookies)} 个 cookie")
+    names = {c["name"] for c in cookies}
+    assert "sessionKey" in names, "缺少 sessionKey，导入无意义"
+    print("sessionKey 存在 ✓  cf_clearance 存在:",
+          "cf_clearance" in names)
     asyncio.run(inject(cookies))
 
 

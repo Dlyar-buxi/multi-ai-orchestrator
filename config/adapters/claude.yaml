@@ -4,16 +4,16 @@ url: https://claude.ai/new
 url_match: ["claude.ai"]
 login_hints: ["/login", "/signin"]
 input_selectors:
+  - "div[contenteditable='true'][data-testid='chat-input']"   # 实测: tiptap 编辑器
   - "div[contenteditable='true'].ProseMirror"
   - "div[contenteditable='true']"
 send_selectors:
-  - "button[aria-label='发送消息']"
   - "button[aria-label='Send message']"
+  - "button[aria-label='发送消息']"
 send_key: Enter
 assistant_selectors:
-  - ".font-claude-message"
-  - "[data-testid='assistant-message']"
-  - "div[data-is-streaming='false']"
+  - "div[data-is-streaming='false']"   # 实测: 回复完成后 true→false，天然契合稳定性判定
+  - ".font-claude-message"             # 旧版结构兜底
 streaming_hints:
-  - "button[aria-label='停止']"
-  - "button[aria-label='Stop']"
+  - "div[data-is-streaming='true']"    # 流式生成中
+  - "button[aria-label='Stop response']"
