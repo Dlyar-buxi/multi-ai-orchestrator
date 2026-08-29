@@ -2,7 +2,8 @@ name: yuanbao
 group: normal
 url: https://yuanbao.tencent.com/chat
 url_match: ["yuanbao.tencent.com"]
-mode_text: "深度思考"
+mode_trigger: "快速模式"             # 触发器显示当前模式名
+mode_text: "专家模式"                # 下拉菜单中目标选项；可见=已激活
 input_selectors:
   - "div.ql-editor"                    # 实测: Quill 编辑器（可见）
   - ".ql-editor[contenteditable='true']"

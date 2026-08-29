@@ -92,10 +92,16 @@ class WebAgentDriver:
     # ---------- 模式切换 ----------
     async def _ensure_mode(self, page: Page):
         """发送前切换到目标模式。
-        优先 mode_selectors（css），其次 mode_text（可见文本）。
-        aria 按压态=true 则跳过；找不到元素则跳过（依赖站点自身模式记忆）。"""
-        selectors = list(self.adapter.__dict__.get("mode_selectors") or [])
-        text = self.adapter.__dict__.get("mode_text")
+        两段式（mode_trigger+mode_text）：下拉菜单型切换。触发器显示当前模式名，
+        因此目标模式文本可见 = 已激活；不可见则点开菜单再选项，Escape 兜底收起。
+        开关式（mode_selectors/mode_text）：aria 按压态=true 跳过；找不到自动跳过。"""
+        ad = self.adapter.__dict__
+        trigger = ad.get("mode_trigger")
+        text = ad.get("mode_text")
+        if trigger and text:
+            await self._switch_dropdown_mode(page, trigger, text)
+            return
+        selectors = list(ad.get("mode_selectors") or [])
         if text and not selectors:
             selectors = [f"text={text}"]
         if not selectors:
@@ -129,6 +135,41 @@ class WebAgentDriver:
                     return
                 except PWTimeout:
                     continue
+
+    async def _switch_dropdown_mode(self, page: Page, trigger: str, option: str):
+        opt = page.locator(f"text={option}")
+        # 目标模式可见 = 已激活（触发器显示当前模式名）
+        try:
+            n = await opt.count()
+        except PWTimeout:
+            return
+        for i in range(min(n, 5)):
+            try:
+                if await opt.nth(i).is_visible():
+                    return
+            except PWTimeout:
+                continue
+        # 点开下拉菜单
+        try:
+            await page.locator(f"text={trigger}").first.click(timeout=5000)
+            await asyncio.sleep(0.8)
+        except PWTimeout:
+            return
+        # 在弹层中点目标选项
+        try:
+            n = await opt.count()
+            for i in range(min(n, 5)):
+                el = opt.nth(i)
+                try:
+                    if await el.is_visible():
+                        await el.click()
+                        await asyncio.sleep(0.6)
+                        return
+                except PWTimeout:
+                    continue
+        except PWTimeout:
+            pass
+        await page.keyboard.press("Escape")  # 兜底收起，防残留弹层挡输入框
 
     # ---------- 发送 ----------
     async def _send(self, page: Page, prompt: str):
