@@ -55,29 +55,37 @@ CONTAINER_PROBE_JS = """
 
 MODE_PROBE_JS = """
 () => {
-  // 枚举模式/模型切换按钮：含关键词或带 aria 按压态
-  const kws = ['思考','think','深度','turbo','swarm','k3','expert','专家','flash','模型','pro','search','联网'];
+  // 深度文本扫描：找含模式关键词的最深层可见文本元素（含下拉菜单内选项）
+  const kws = ['思考','think','深度','turbo','swarm','k3','expert','专家','云端','电脑','电脑','智能体','agent','research','调研','联网','flash','pro','模型'];
   const out = [];
-  const walk = (root) => {
-    let els;
-    try { els = root.querySelectorAll('button, [role="button"], [class*="switch"], [class*="toggle"], [class*="mode"], [class*="model"]'); }
-    catch { return; }
-    for (const el of els) {
-      if (el.shadowRoot) walk(el.shadowRoot);
-      const r = el.getBoundingClientRect();
-      if (r.width < 16 || r.height < 10) continue;
-      const text = (el.innerText || '').trim().slice(0, 40);
-      const pressed = el.getAttribute('aria-pressed') || el.getAttribute('aria-checked') || '';
-      const low = (text + ' ' + String(el.className)).toLowerCase();
-      if (!text && !pressed) continue;
-      if (!pressed && !kws.some(k => low.includes(k))) continue;
-      out.push({tag: el.tagName.toLowerCase(), text, pressed, cls: String(el.className).slice(0, 60)});
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.shadowRoot) {
+      // shadow DOM 内递归由 querySelectorAll 分支处理，此处跳过
+      continue;
     }
-  };
-  walk(document);
+    const style = getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) continue;
+    const own = Array.from(node.childNodes)
+      .filter(n => n.nodeType === 3)
+      .map(n => n.textContent.trim()).join(' ');
+    if (!own) continue;
+    const low = own.toLowerCase();
+    if (!kws.some(k => low.includes(k))) continue;
+    const r = node.getBoundingClientRect();
+    if (r.width < 12 || r.height < 8) continue;
+    out.push({
+      tag: node.tagName.toLowerCase(),
+      text: own.slice(0, 40),
+      pressed: node.getAttribute('aria-pressed') || node.getAttribute('aria-checked') || node.getAttribute('role') || '',
+      cls: String(node.className).slice(0, 50),
+      y: Math.round(r.top),
+    });
+  }
   const seen = new Set();
-  return out.filter(x => { const k = x.tag + '|' + x.text + '|' + x.pressed;
-    if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 30);
+  return out.filter(x => { const k = x.tag + '|' + x.text;
+    if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 40);
 }
 """
 

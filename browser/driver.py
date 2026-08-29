@@ -82,40 +82,44 @@ class WebAgentDriver:
 
     # ---------- 模式切换 ----------
     async def _ensure_mode(self, page: Page):
-        """发送前切换到 yaml 指定的模式（mode_text）。
-        aria 按压态=true 则跳过；按钮不存在（未渲染/下拉式选择器）则跳过，
-        依赖站点自身的模式记忆。"""
+        """发送前切换到目标模式。
+        优先 mode_selectors（css），其次 mode_text（可见文本）。
+        aria 按压态=true 则跳过；找不到元素则跳过（依赖站点自身模式记忆）。"""
+        selectors = list(self.adapter.__dict__.get("mode_selectors") or [])
         text = self.adapter.__dict__.get("mode_text")
-        if not text:
+        if text and not selectors:
+            selectors = [f"text={text}"]
+        if not selectors:
             return
-        loc = page.locator(f"text={text}")
-        try:
-            n = await loc.count()
-        except PWTimeout:
-            return
-        for i in range(min(n, 5)):
-            el = loc.nth(i)
+        for sel in selectors:
+            loc = page.locator(sel)
             try:
-                if not await el.is_visible():
-                    continue
-                state = await el.evaluate(
-                    """e => {
-                        let x = e;
-                        for (let d = 0; x && d < 4; d++, x = x.parentElement) {
-                            const p = x.getAttribute('aria-pressed') ?? x.getAttribute('aria-checked');
-                            if (p === 'true') return true;
-                            if (p === 'false') return false;
-                        }
-                        return null;
-                    }"""
-                )
-                if state is True:  # 已激活
-                    return
-                await el.click()
-                await asyncio.sleep(0.6)
-                return
+                n = await loc.count()
             except PWTimeout:
                 continue
+            for i in range(min(n, 5)):
+                el = loc.nth(i)
+                try:
+                    if not await el.is_visible():
+                        continue
+                    state = await el.evaluate(
+                        """e => {
+                            let x = e;
+                            for (let d = 0; x && d < 4; d++, x = x.parentElement) {
+                                const p = x.getAttribute('aria-pressed') ?? x.getAttribute('aria-checked');
+                                if (p === 'true') return true;
+                                if (p === 'false') return false;
+                            }
+                            return null;
+                        }"""
+                    )
+                    if state is True:  # 已激活
+                        return
+                    await el.click()
+                    await asyncio.sleep(0.6)
+                    return
+                except PWTimeout:
+                    continue
 
     # ---------- 发送 ----------
     async def _send(self, page: Page, prompt: str):
