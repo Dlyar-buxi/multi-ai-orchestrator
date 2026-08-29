@@ -1,11 +1,28 @@
-# 浏览器 profile 含登录 cookie，严禁上传
+# ========= 隐私红线：以下内容严禁进入版本库 =========
+
+# 浏览器 profile 含登录 cookie/sessionKey，严禁上传
 ff_profile_private/
 ff_profile_normal/
+ff_profile_private_test/
 browser_profile/
 chrome_debug_profile/
+
+# 登录凭证 / cookie 导出文件（Claude sessionKey 等）
+claude_cookies.json
+*cookies*.json
+*cookies*.sqlite
+*.session
+
+# 会话日志（含聊天内容）
+logs/
+*.log
+
+# 模型产出默认不上传（含任务提示词与模型原始回复；需要分享时手动 git add -f）
+outputs/
 
 # 运行时产物
 __pycache__/
 *.pyc
-logs/
 .trae/
+*.sqlite
+*.db

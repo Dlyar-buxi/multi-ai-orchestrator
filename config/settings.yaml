@@ -30,5 +30,8 @@ git:
   remote: origin
   branch: main
   auto_push: true
+  # 隐私白名单：只上传这些路径（.gitignore 里还有一层红线兜底）
+  paths:
+    - outputs/               # 模型产出。不想公开就删掉这行
 
 log_file: ./logs/session.jsonl
