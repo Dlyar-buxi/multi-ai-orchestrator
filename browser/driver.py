@@ -22,6 +22,8 @@ class WebAgentDriver:
 
     # ---------- 对外主流程 ----------
     async def ask(self, prompt: str) -> str:
+        """发送一轮对话。标签页优先级: 已开会话 > 记忆会话URL(上下文延续) > 新会话。
+        会话页内继续发消息时 URL 不变, baseline=当前历史块数, 判定照常工作。"""
         page = await self.pool.ensure_page(self.adapter)
         # 不 bring_to_front，避免自动化期间反复抢占你正在用的窗口焦点
 
@@ -38,7 +40,10 @@ class WebAgentDriver:
         if jumped:
             baseline = 0
         await self._wait_reply(page, baseline)
-        return await self._extract(page)
+        text = await self._extract(page)
+        # 成功回复后记住会话 URL，下一轮直接回到本会话继续（上下文原生延续）
+        self.pool.remember_session(self.adapter, page.url)
+        return text
 
     # ---------- 定位 ----------
     async def _locate(self, page: Page, selectors: list[str], timeout: int = 20000) -> Locator:
