@@ -21,6 +21,9 @@ github_token.txt
 logs/
 *.log
 
+# 项目会话（需求/各轮产出，属本地隐私）
+projects/
+
 # 模型产出默认不上传（含任务提示词与模型原始回复；需要分享时手动 git add -f）
 outputs/
 

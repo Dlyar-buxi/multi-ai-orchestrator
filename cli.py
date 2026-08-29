@@ -203,6 +203,65 @@ async def cmd_pipeline(args):
     GitSync(settings).run(f"pipeline 产出: {args.task[:50]}")
 
 
+# ---------------- 项目会话（多轮迭代） ----------------
+
+def _proj(args):
+    from core.project import Project
+    return Project.load(args.name)
+
+
+async def cmd_project(args):
+    from core.project import Project
+
+    settings = load_settings()
+
+    if args.action == "list":
+        names = Project.list_all()
+        console.print("\n".join(names) if names else "（暂无项目，用 project new 创建）")
+        return
+
+    if args.action == "new":
+        p = Project.create(args.name, args.extra or "")
+        console.print(f"[green]项目已创建[/]: projects/{p.name}/")
+        console.print(f"需求: {args.extra}")
+        return
+
+    if args.action == "status":
+        p = _proj(args)
+        console.print("\n".join(p.status_lines()))
+        return
+
+    if args.action == "pick":
+        p = _proj(args)
+        r = p.pick(int(args.extra))
+        console.print(f"[green]当前版本已切换[/] -> 第{r['n']}轮 [{r['agent']}] {r['file']}")
+        return
+
+    # ask / iterate：带项目上下文发给模型
+    p = _proj(args)
+    orch = build_orchestrator(settings)
+    await orch.pool.start()
+    try:
+        prompt = p.build_prompt(args.instruction)
+        if args.action == "ask":
+            r = await orch.ask_one(args.extra, prompt)
+            show_replies({args.extra: r})
+            if r.ok:
+                rec = p.record(args.extra, args.instruction, r.text)
+                console.print(f"[green]已记录[/]: 第{rec['n']}轮 (当前版本)")
+        else:  # iterate
+            names = args.to or orch.registry.names()
+            replies = await orch.broadcast(prompt, names)
+            show_replies(replies)
+            for n_, r in replies.items():
+                if r.ok:
+                    rec = p.record(n_, args.instruction, r.text)
+                    console.print(f"[green]{n_} 已记录[/]: 第{rec['n']}轮")
+            console.print("用 [cyan]project pick <轮次号>[/] 选定权威版本，下轮迭代将基于它")
+    finally:
+        await orch.pool.stop()
+
+
 # ---------------- 入口 ----------------
 
 async def cmd_probe(args):
@@ -335,6 +394,14 @@ def main():
     s.add_argument("task")
     s.add_argument("--to", nargs="*")
     s.set_defaults(fn=cmd_pipeline)
+
+    s = sub.add_parser("project", help="项目会话：new/list/status/pick/ask/iterate（多轮迭代）")
+    s.add_argument("action", choices=["new", "list", "status", "pick", "ask", "iterate"])
+    s.add_argument("name", nargs="?", help="项目名（new/status/pick/ask/iterate 需要）")
+    s.add_argument("extra", nargs="?", help="new=需求文本; pick=轮次号; ask=模型名")
+    s.add_argument("instruction", nargs="?", help="ask/iterate 的本轮指示")
+    s.add_argument("--to", nargs="*", help="iterate 的目标模型列表，缺省全部")
+    s.set_defaults(fn=cmd_project)
 
     args = p.parse_args()
     if inspect.iscoroutinefunction(args.fn):
