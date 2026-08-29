@@ -28,7 +28,7 @@ ollama:
 
 coordinator:
   # 协调员（任务分解/汇总仲裁）：auto=有云端key用云端,否则本地ollama | ollama | cloud
-  provider: auto
+  provider: auto                 # 实测云端12.3s vs 本地30.2s，用云端；断网自动回退本地
   api_key_file: zhipu_key.txt    # 智谱key存这里（已gitignore），或环境变量 ZHIPU_API_KEY
   base_url: https://open.bigmodel.cn/api/paas/v4
   model: glm-4-flash             # 免费档
