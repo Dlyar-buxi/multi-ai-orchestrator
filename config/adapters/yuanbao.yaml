@@ -2,6 +2,7 @@ name: yuanbao
 group: normal
 url: https://yuanbao.tencent.com/chat
 url_match: ["yuanbao.tencent.com"]
+mode_text: "深度思考"
 input_selectors:
   - "div.ql-editor"                    # 实测: Quill 编辑器（可见）
   - ".ql-editor[contenteditable='true']"

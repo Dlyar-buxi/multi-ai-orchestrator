@@ -24,16 +24,18 @@ class WebAgentDriver:
         page = await self.pool.ensure_page(self.adapter)
         # 不 bring_to_front，避免自动化期间反复抢占你正在用的窗口焦点
 
-        baseline = await self._count_assistant_blocks(page)
         url_before = page.url
+        baseline = await self._count_assistant_blocks(page)
         await self._send(page, prompt)
-        # 站点可能因新消息跳转新会话页（如豆包），块数会重置，baseline 失效
-        if page.url != url_before:
+        # SPA 跳转到新会话页是异步的：观察 3s，URL 变了说明开新会话，块数从零计
+        jumped = False
+        for _ in range(6):
+            await asyncio.sleep(0.5)
+            if page.url != url_before:
+                jumped = True
+                break
+        if jumped:
             baseline = 0
-            try:
-                await page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except PWTimeout:
-                pass
         await self._wait_reply(page, baseline)
         return await self._extract(page)
 
@@ -78,18 +80,62 @@ class WebAgentDriver:
                 continue
         return ""
 
+    # ---------- 模式切换 ----------
+    async def _ensure_mode(self, page: Page):
+        """发送前切换到 yaml 指定的模式（mode_text）。
+        aria 按压态=true 则跳过；按钮不存在（未渲染/下拉式选择器）则跳过，
+        依赖站点自身的模式记忆。"""
+        text = self.adapter.__dict__.get("mode_text")
+        if not text:
+            return
+        loc = page.locator(f"text={text}")
+        try:
+            n = await loc.count()
+        except PWTimeout:
+            return
+        for i in range(min(n, 5)):
+            el = loc.nth(i)
+            try:
+                if not await el.is_visible():
+                    continue
+                state = await el.evaluate(
+                    """e => {
+                        let x = e;
+                        for (let d = 0; x && d < 4; d++, x = x.parentElement) {
+                            const p = x.getAttribute('aria-pressed') ?? x.getAttribute('aria-checked');
+                            if (p === 'true') return true;
+                            if (p === 'false') return false;
+                        }
+                        return null;
+                    }"""
+                )
+                if state is True:  # 已激活
+                    return
+                await el.click()
+                await asyncio.sleep(0.6)
+                return
+            except PWTimeout:
+                continue
+
     # ---------- 发送 ----------
     async def _send(self, page: Page, prompt: str):
         box = await self._locate(page, self.adapter.input_selectors)
-        await box.click()
+        try:
+            await box.click(timeout=8000)
+        except PWTimeout:  # 被遮挡/动画中时退化为聚焦
+            await box.focus()
+        await self._ensure_mode(page)  # 聚焦后模式按钮才渲染
         # insert_text 直接写入剪贴板式文本，支持中文/换行，比逐字 type 快
         await page.keyboard.insert_text(prompt)
         await asyncio.sleep(0.3)
 
-        # 优先点发送按钮，失败则回车
+        # 优先点发送按钮，点不动（遮挡）或找不到则回车兜底
         try:
             btn = await self._locate(page, self.adapter.send_selectors, timeout=3000)
-            await btn.click()
+            try:
+                await btn.click(timeout=5000)
+            except PWTimeout:
+                await page.keyboard.press(self.adapter.send_key)
         except RuntimeError:
             await page.keyboard.press(self.adapter.send_key)
 

@@ -22,20 +22,14 @@ async def main():
         url0 = page.url
         print(f"URL={url0}  baseline={baseline}  assistant={a.assistant_selectors[0]}")
         await drv._send(page, "只回复两个字：收到")
-        print("--- 已发送，等 20s 后 dump 块结构 ---")
-        await asyncio.sleep(20)
-        blocks = page.locator(a.assistant_selectors[0])
-        c = await blocks.count()
-        for i in range(c):
-            el = blocks.nth(i)
-            try:
-                cls = await el.get_attribute("class") or ""
-                txt = (await el.inner_text()).strip().replace("\n", " ")[:60]
-                vis = await el.is_visible()
-                box = await el.bounding_box()
-                print(f"[{i}] 可见={vis} 尺寸={box and (round(box['width']), round(box['height']))} cls={cls[:70]!r} 文本={txt!r}")
-            except Exception as e:
-                print(f"[{i}] 读取失败: {str(e)[:60]}")
+        print("--- 已发送，开始观察 ---")
+        url0 = page.url
+        for i in range(24):
+            await asyncio.sleep(5)
+            blocks = page.locator(a.assistant_selectors[0])
+            c = await blocks.count()
+            t = (await blocks.nth(c - 1).inner_text()).strip().replace("\n", " ")[:50] if c else ""
+            print(f"{i*5+5:>3}s url变={str(page.url != url0):<5} url={page.url[:60]} count={c:<3} last={t!r}")
     finally:
         await orch.pool.stop()
 

@@ -53,6 +53,35 @@ CONTAINER_PROBE_JS = """
 """
 
 
+MODE_PROBE_JS = """
+() => {
+  // 枚举模式/模型切换按钮：含关键词或带 aria 按压态
+  const kws = ['思考','think','深度','turbo','swarm','k3','expert','专家','flash','模型','pro','search','联网'];
+  const out = [];
+  const walk = (root) => {
+    let els;
+    try { els = root.querySelectorAll('button, [role="button"], [class*="switch"], [class*="toggle"], [class*="mode"], [class*="model"]'); }
+    catch { return; }
+    for (const el of els) {
+      if (el.shadowRoot) walk(el.shadowRoot);
+      const r = el.getBoundingClientRect();
+      if (r.width < 16 || r.height < 10) continue;
+      const text = (el.innerText || '').trim().slice(0, 40);
+      const pressed = el.getAttribute('aria-pressed') || el.getAttribute('aria-checked') || '';
+      const low = (text + ' ' + String(el.className)).toLowerCase();
+      if (!text && !pressed) continue;
+      if (!pressed && !kws.some(k => low.includes(k))) continue;
+      out.push({tag: el.tagName.toLowerCase(), text, pressed, cls: String(el.className).slice(0, 60)});
+    }
+  };
+  walk(document);
+  const seen = new Set();
+  return out.filter(x => { const k = x.tag + '|' + x.text + '|' + x.pressed;
+    if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 30);
+}
+"""
+
+
 async def main(names, send=False):
     settings = load_settings()
     orch = build_orchestrator(settings)
@@ -96,6 +125,10 @@ async def main(names, send=False):
                             print(f"    {cnt:>2} 个 <- {sel}")
                         except Exception as e:
                             print(f"    ERR <- {sel}: {str(e)[:60]}")
+                modes = await page.evaluate(MODE_PROBE_JS)
+                print("  -- 模式/模型按钮 --")
+                for m in modes:
+                    print(f"    <{m['tag']}> 按压态={m['pressed']!r} 文本={m['text']!r} cls={m['cls']!r}")
             except Exception as e:
                 print(f"  侦察失败: {type(e).__name__}: {str(e)[:100]}")
     finally:

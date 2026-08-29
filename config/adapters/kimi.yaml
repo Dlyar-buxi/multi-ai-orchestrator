@@ -2,6 +2,7 @@ name: kimi
 group: normal
 url: https://www.kimi.com/
 url_match: ["kimi.com", "kimi.moonshot.cn"]
+mode_text: "K3"                      # 模型选择器式，找不到自动跳过
 input_selectors:
   - "div.chat-input-editor"           # 实测: contenteditable div
   - ".chat-input-editor"

@@ -2,6 +2,7 @@ name: qwen
 group: normal
 url: https://chat.qwen.ai/
 url_match: ["chat.qwen.ai", "tongyi.com"]
+mode_text: "Thinking"                # 聚焦输入框后渲染；找不到自动跳过
 input_selectors:
   - "textarea.message-input-textarea"  # 实测命中
   - ".message-input-textarea"

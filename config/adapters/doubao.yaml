@@ -2,6 +2,7 @@ name: doubao
 group: normal
 url: https://www.doubao.com/chat/
 url_match: ["doubao.com/chat"]
+mode_text: "2.1 Turbo"               # 模型下拉式，找不到自动跳过
 input_selectors:
   - "div.tiptap.ProseMirror"          # 实测: tiptap 富文本编辑器
   - ".ProseMirror[contenteditable='true']"

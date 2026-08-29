@@ -3,6 +3,7 @@ group: normal
 url: https://chat.deepseek.com/
 url_match: ["chat.deepseek.com"]
 login_hints: ["sign_in"]
+mode_text: "DeepThink"               # aria-pressed 开关，已激活自动跳过
 input_selectors:
   - "textarea#chat-input"
   - "textarea"

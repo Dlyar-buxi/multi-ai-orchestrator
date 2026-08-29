@@ -43,6 +43,10 @@ class BrowserPool:
             self.contexts[name] = await launcher.launch_persistent_context(
                 g["profile"], **kwargs
             )
+            # 基础反自动化指纹：隐藏 navigator.webdriver（缓解 Cloudflare/Turnstile 敏感度）
+            await self.contexts[name].add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            )
 
     def context_for(self, adapter: Adapter) -> BrowserContext:
         """按适配器分组找到所属浏览器实例"""
