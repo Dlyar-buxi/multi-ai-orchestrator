@@ -19,7 +19,7 @@ browser:
   stability_ms: 2500       # 回复文本连续无变化视为生成完毕
   poll_interval_ms: 800
   session_reuse: true      # 会话复用：回到上次会话继续聊，站点原生记住全部上下文
-  session_reuse_limit: 20  # 同一会话连用 N 轮后自动无缝开新会话（防 DOM 膨胀卡死）
+  session_reuse_limit: 10000  # 同一会话连用上限（用户要求1万起步）；真卡死时下一轮goto失败会自动降级开新会话
 
 ollama:
   enabled: true
