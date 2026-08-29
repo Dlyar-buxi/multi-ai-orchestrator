@@ -13,6 +13,10 @@ claude_cookies.json
 *cookies*.sqlite
 *.session
 
+# GitHub PAT（新建仓库能力用）
+github_token.txt
+*.token
+
 # 会话日志（含聊天内容）
 logs/
 *.log

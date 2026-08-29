@@ -34,4 +34,8 @@ git:
   paths:
     - outputs/               # 模型产出。不想公开就删掉这行
 
+github:
+  # 新建仓库能力用。PAT 存本地文件（已 gitignore）或设环境变量 GITHUB_TOKEN
+  token_file: github_token.txt
+
 log_file: ./logs/session.jsonl

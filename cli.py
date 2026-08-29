@@ -7,6 +7,7 @@
   python cli.py broadcast "方案A和方案B哪个好"  # 广播给全部（或 --to deepseek,kimi）
   python cli.py debate "..." --proponent chatgpt --critic claude
   python cli.py pipeline "做一个XX项目" --to deepseek,kimi,chatgpt
+  python cli.py newrepo 新项目名 --desc "描述" [--public] [--push]   # GitHub 新建仓库（默认 private）
 """
 import argparse
 import asyncio
@@ -93,14 +94,19 @@ async def cmd_login(args):
 
     elapsed = 0
     states = {}
+    # 仅当所有站点都能通过 URL 自动判定且全部通过时才提前结束；
+    # 存在无法判定的站点（如 chatgpt 登录前后 URL 不变）则等满 --wait
+    detectable = [n for n in reg.names() if reg.get(n).__dict__.get("login_hints")]
+    all_detectable = len(detectable) == len(reg.names())
     while elapsed < args.wait:
         await asyncio.sleep(5)
         elapsed += 5
         states = login_state()
-        if all(states.values()):
+        if all_detectable and all(states.values()):
             break
         pend = [n for n, ok in states.items() if not ok]
-        console.print(f"  [{elapsed:>3}s] 待登录: {', '.join(pend)}")
+        if pend:
+            console.print(f"  [{elapsed:>3}s] 待登录: {', '.join(pend)}")
 
     await orch.pool.stop()
     ok = [n for n, s in states.items() if s]
@@ -249,9 +255,53 @@ async def cmd_probe(args):
     await orch.pool.stop()
 
 
+def cmd_newrepo(args):
+    """在 GitHub 上新建仓库；--push 把当前项目推上去"""
+    from gitops.github import GitHubClient, GitHubError
+
+    settings = load_settings()
+    gh = GitHubClient(settings)
+    if not gh.ready:
+        console.print(
+            f"[red]缺少 token[/]：把 GitHub PAT 写入 [cyan]github_token.txt[/] "
+            f"（见 gitops/github.py 头部说明），或设置环境变量 GITHUB_TOKEN"
+        )
+        raise SystemExit(1)
+    user = gh.me()  # 验证 token 有效性
+    try:
+        repo = gh.create_repo(
+            args.name,
+            private=not args.public,
+            description=args.desc or "",
+            auto_init=args.init,
+        )
+    except GitHubError as e:
+        console.print(f"[red]创建失败[/]: {e}")
+        raise SystemExit(1)
+    vis = "private" if repo.get("private") else "public"
+    console.print(f"[green]仓库已创建[/] ({vis}): {repo['html_url']}")
+    if args.push:
+        gitsync = GitSync(settings)
+        rc, out = gitsync._git("remote", "add", "origin", repo["clone_url"])
+        if rc != 0:
+            gitsync._git("remote", "set-url", "origin", repo["clone_url"])
+        gitsync._git("add", ".")  # 首推整库（.gitignore 红线自动过滤隐私）
+        gitsync._git("commit", "-m", f"init: {args.name}")
+        rc, out = gitsync._git("push", "-u", "origin", gitsync.branch)
+        print(out[:400] if rc == 0 else f"[red]push 失败: {out}[/]")
+
+
 def main():
     p = argparse.ArgumentParser(description="多模型网页版自动协同框架")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("newrepo", help="在 GitHub 上新建仓库（默认 private）")
+    s.add_argument("name", help="仓库名")
+    s.add_argument("--public", action="store_true", help="建公开仓库（默认 private）")
+    s.add_argument("--desc", default="", help="仓库描述")
+    s.add_argument("--init", action="store_true", help="带 README 初始化")
+    s.add_argument("--push", action="store_true", help="把当前项目推上去")
+    s.set_defaults(fn=cmd_newrepo)
 
     s = sub.add_parser("login", help="首次使用：打开双 Firefox 实例与全部站点，人工登录")
     s.add_argument("--wait", type=int, default=600, help="等待登录秒数，默认 600")
