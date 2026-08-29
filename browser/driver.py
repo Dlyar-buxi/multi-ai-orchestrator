@@ -2,6 +2,7 @@
 流程: 定位输入框 → 注入 prompt → 发送 → 等待新回复块出现且文本稳定 → 抽取
 """
 import asyncio
+import re
 import time
 
 from playwright.async_api import Locator, Page, TimeoutError as PWTimeout
@@ -64,8 +65,16 @@ class WebAgentDriver:
         except PWTimeout:
             return 0
 
+    # 回复区常见噪声文本（反馈条/推荐追问/时间戳），抽取时跳过
+    NOISE_RE = re.compile(
+        r"^(you are providing feedback|正在提供反馈|请提供反馈|复制|重新生成|收起|展开|"
+        r"分享|点赞|点踩|举报|继续|换一个|换一批|今天 \d{1,2}:\d{2}|昨天 \d{1,2}:\d{2}|"
+        r"\d{4}-\d{2}-\d{2})",
+        re.IGNORECASE,
+    )
+
     async def _last_nonempty_text(self, page: Page) -> str:
-        """倒序找第一个可见且非空的候选块（豆包等站点最后一块是恒空占位行）"""
+        """倒序找第一个可见、非空且非噪声的候选块（豆包等站点最后一块是恒空占位行）"""
         blocks = page.locator(self.adapter.assistant_selectors[0])
         count = await blocks.count()
         for i in range(count - 1, max(-1, count - 15), -1):  # 最多回看14块，防超时
@@ -74,7 +83,7 @@ class WebAgentDriver:
                 if not await el.is_visible():
                     continue
                 text = (await el.inner_text()).strip()
-                if text:
+                if text and not self.NOISE_RE.match(text[:60]):
                     return text
             except PWTimeout:
                 continue
