@@ -56,19 +56,24 @@ def _pump(jid: str):
 def parse_intent(text: str, mode: str, models: list[str], project: str) -> tuple[list[str], str]:
     """返回 (cli子命令, 描述)。auto 模式按语法猜。"""
     t = text.strip()
-    if mode == "ask" or (mode == "auto" and models and not project and not t.startswith("新项目") and "@" not in t):
-        return (["ask", models[0] if models else "deepseek", t], f"单问 {models[0] if models else 'deepseek'}")
+    ms = models or []
+    # pipeline: 手动选模式；或 auto 模式下选了 >=2 模型 + 没选项目 + 文本不是"新项目"
+    if mode == "pipeline" or (
+        mode == "auto" and len(ms) >= 2 and not project
+        and not t.startswith("新项目") and "@" not in t
+    ):
+        return (["pipeline", t, "--to", *ms], f"五阶段协作·{'/'.join(ms)}")
+    if mode == "ask" or (mode == "auto" and ms and not project and not t.startswith("新项目")):
+        return (["ask", ms[0], t], f"单问 {ms[0]}")
     if mode == "broadcast" or (mode == "auto" and "@" in t):
         if "@" in t:
-            parts = t.split(None, 1)
-            hits = [m for m in MODELS if f"@{m}" in parts[0]]
-            body = t[len("@" + hits[0]):].strip() if hits else t
+            hits = [m for m in MODELS if f"@{m}" in t]
+            body = t
             for h in hits:
                 body = body.replace(f"@{h}", "").strip()
-            return (["broadcast", body, "--to", *hits], f"广播 {'/'.join(hits)}")
-        return (["broadcast", t, "--to", *models], f"广播 {'/'.join(models)}")
-    if mode == "pipeline":
-        return (["pipeline", t, "--to", *models], f"流水线 {'/'.join(models)}")
+            if hits:
+                return (["broadcast", body, "--to", *hits], f"广播 {'/'.join(hits)}")
+        return (["broadcast", t, "--to", *ms], f"广播 {'/'.join(ms)}")
     if mode == "new" or (mode == "auto" and t.startswith("新项目")):
         body = t[3:].strip() if t.startswith("新项目") else t
         name, sep, req = body.partition(":")
@@ -77,8 +82,10 @@ def parse_intent(text: str, mode: str, models: list[str], project: str) -> tuple
         return (["project", "new", name.strip() or "未命名", req.strip() or "无描述"], f"新项目 {name.strip()}")
     if mode == "project" or (mode == "auto" and project):
         if not project:
-            return (["ask", models[0] if models else "deepseek", t], "（未选项目，改为单问）")
-        m = models[0] if models else "deepseek"
+            return (["ask", (ms[0] if ms else "deepseek"), t], "（未选项目，改为单问）")
+        if len(ms) >= 2:
+            return (["project", "iterate", project, t, "--to", *ms], f"项目 {project} · 多模型迭代")
+        m = ms[0] if ms else "deepseek"
         return (["project", "ask", project, m, t], f"项目 {project} · {m}")
     return (["ask", "deepseek", t], "单问 deepseek")
 

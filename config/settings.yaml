@@ -33,6 +33,13 @@ coordinator:
   base_url: https://open.bigmodel.cn/api/paas/v4
   model: glm-4-flash             # 免费档
 
+pipeline:
+  max_rounds: 3                  # 最大讨论会循环轮次(防无限迭代)
+  converge_under: 2              # 合并后问题数<=此值即认为收敛，停止修订
+  # 并发: group=按实例分组(normal/private独立worker,组内串行,组间并行)
+  #       all=全并行(gather)(暂未启用，同一BrowserContext内实际上串行意义有限)
+  concurrency: group
+
 git:
   enabled: true
   repo_dir: .

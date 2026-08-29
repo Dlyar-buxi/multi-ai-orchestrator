@@ -8,6 +8,7 @@ from browser.driver import WebAgentDriver
 from browser.pool import BrowserPool
 from core.aggregator import summarize
 from core.models import Reply, SessionLog
+from core.pipeline import PipelineEngine
 from local_llm.cloud_client import CloudClient
 from local_llm.ollama_client import OllamaClient
 
@@ -45,7 +46,8 @@ class Orchestrator:
         return WebAgentDriver(self.pool, self.registry.get(name), self.settings)
 
     async def ask_one(self, name: str, prompt: str) -> Reply:
-        r = Reply(agent=name, prompt=prompt)
+        """单发；带 prompt 长度摘要记录到会话日志。同一命令内复用 driver → 无需关页面。"""
+        r = Reply(agent=name, prompt=prompt[:200] + ("..." if len(prompt) > 200 else ""))
         t0 = time.time()
         try:
             r.text = await self._driver(name).ask(prompt)
@@ -80,24 +82,15 @@ class Orchestrator:
             prompt, {"proponent": r1, "critic": r2}, self.ollama
         )
 
-    async def pipeline(self, task: str, names: list[str] | None = None) -> str:
-        """本地模型分解任务 → 分派给网页模型执行 → 汇总成文档"""
+    async def pipeline(self, task: str, names: list[str] | None = None,
+                       project_dir: str | None = None) -> str:
+        """五阶段协同 pipeline: kickoff→decompose→produce→review→revise 循环直至收敛"""
         names = names or self.registry.names()
-        plan = await self._decompose(task, names)
-
-        replies: dict[str, Reply] = {}
-        if plan:
-            for item in plan:
-                sub, who = item["subtask"], item.get("assignee")
-                if who not in names:
-                    who = names[0]
-                replies[who] = await self.ask_one(who, sub)
-        else:  # 分解失败退化为广播
-            replies = await self.broadcast(task, names)
-
-        final = await summarize(task, replies, self.ollama)
-        self.log.write({"kind": "pipeline", "task": task, "plan": plan, "final": final})
-        return final
+        engine = PipelineEngine(self, self.settings, self.registry, self.pool, self.ollama)
+        result = await engine.run(task, names, project_dir=project_dir)
+        self.log.write({"kind": "pipeline", "task": task, "framework_v": result.framework_version,
+                        "rounds": result.review_rounds, "issues": result.final_issue_count})
+        return result.to_markdown()
 
     async def _decompose(self, task: str, names: list[str]) -> list[dict] | None:
         if not self.ollama.available():

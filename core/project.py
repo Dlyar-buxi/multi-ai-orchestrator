@@ -122,15 +122,47 @@ class Project:
         return r
 
     # ---------- prompt 组装 ----------
-    def build_prompt(self, instruction: str) -> str:
+    def build_prompt(self, instruction: str, multi_agent: list[str] | None = None) -> str:
+        """组装 prompt。
+        multi_agent 非空时：表示这一轮是"多模型并行"，我们在每个模型的 prompt 里
+        写清项目框架+大家都在做什么，解决用户提的"分配时不携带背景"问题。
+        """
         parts = [f"【项目需求】\n{self.data['requirement']}"]
+
+        # 统一框架（如果有，每个模型都必须看到）
+        fw_path = os.path.join(self.dir, "framework.md")
+        if os.path.exists(fw_path):
+            try:
+                with open(fw_path, encoding="utf-8") as f:
+                    fw = f.read()
+                # 加版本号(读项目元数据里的framework_version)
+                fv = self.data.get("framework_version", 1)
+                parts.append(f"\n【统一框架 v{fv}】(所有AI必须以此为准，冲突写建议区)\n{clip(fw, 8000)}")
+            except OSError:
+                pass
+
         cur = self.current_round()
         if cur:
             parts.append(
-                f"\n【当前版本·第{cur['n']}轮·来自{cur['agent']}】\n"
+                f"\n【当前权威版本·第{cur['n']}轮·来自{cur['agent']}】\n"
                 f"当时指示: {cur['instruction']}\n"
                 f"{clip(self.current_text(), CURRENT_BUDGET)}"
             )
+
+        # 多模型并发时：列清楚每个人都在做什么(历史产出+本轮指派)
+        if multi_agent:
+            others = [a for a in multi_agent]
+            overview = []
+            for a in others:
+                # 最近一条该模型的产出轮次
+                latest = next((r for r in reversed(self.data["rounds"]) if r["agent"] == a), None)
+                if latest:
+                    overview.append(f"- {a}: 第{latest['n']}轮做了 《{clip(latest['instruction'],80)}》→ {latest['summary']}")
+                else:
+                    overview.append(f"- {a}: (暂无历史产出)")
+            parts.append("\n【本轮参与的AI及各自近况】\n" + "\n".join(overview) +
+                          "\n注意：你和他们都在为同一个项目协作，接口/命名要和统一框架保持一致。")
+
         hist = [r for r in self.data["rounds"] if not cur or r["n"] != cur["n"]]
         if hist:
             lines = [f"- 第{r['n']}轮[{r['agent']}] {clip(r['instruction'], 80)}" for r in hist[-8:]]
@@ -138,6 +170,7 @@ class Project:
         parts.append(
             f"\n【本轮指示·第{len(self.data['rounds']) + 1}轮】\n{instruction}\n\n"
             f"请基于以上项目背景完成本轮指示, 直接输出结果内容本身。"
+            f"如发现统一框架与实际需求冲突，在文末『## 对统一框架的建议』单独列出。"
         )
         return "\n".join(parts)
 

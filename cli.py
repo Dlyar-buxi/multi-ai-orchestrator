@@ -6,13 +6,16 @@
   python cli.py ask deepseek "你好"            # 单发给某个站点
   python cli.py broadcast "方案A和方案B哪个好"  # 广播给全部（或 --to deepseek,kimi）
   python cli.py debate "..." --proponent chatgpt --critic claude
-  python cli.py pipeline "做一个XX项目" --to deepseek,kimi,chatgpt
+  python cli.py pipeline "做一个XX项目" --to deepseek kimi chatglm   # 五阶段全自动协同（推荐）
+  python cli.py project new/ask/iterate/status/pick                 # 多轮项目会话
   python cli.py newrepo 新项目名 --desc "描述" [--public] [--push]   # GitHub 新建仓库（默认 private）
+  python chat.py                                                    # 浏览器聊天台（推荐日常入口）
 """
 import argparse
 import asyncio
 import inspect
 import os
+import time
 
 import yaml
 from rich.console import Console
@@ -193,14 +196,25 @@ async def cmd_pipeline(args):
     settings = load_settings()
     orch = build_orchestrator(settings)
     await orch.pool.start()
+
+    # 带阶段回调显示进度
+    from core.pipeline import STAGE_EMOJI
+    def on_progress(stage, payload):
+        short = payload.get("__short__", "")
+        console.print(f"[dim][pipeline {STAGE_EMOJI.get(stage,'·')} {stage}][/] {short}")
+    orch.settings.setdefault("pipeline", {})
+    orch.settings["pipeline"]["progress_cb"] = staticmethod(on_progress).__func__
+    # 临时落到 outputs 下的 run_id 子目录
+    run_id = time.strftime("pipeline_%Y%m%d_%H%M%S")
+    pdir = os.path.join(ROOT, "outputs", run_id)
+
     try:
-        final = await orch.pipeline(args.task, args.to)
-        console.print(Panel(final, title="[cyan]流水线产出[/]"))
-        path = save_output("pipeline_result", final)
-        console.print(f"已保存: {path}")
+        final = await orch.pipeline(args.task, args.to, project_dir=pdir)
+        console.print(Panel(final, title="[cyan]流水线产出·五阶段协同[/]"))
+        console.print(f"[dim]完整项目目录: {pdir}[/]")
     finally:
         await orch.pool.stop()
-    GitSync(settings).run(f"pipeline 产出: {args.task[:50]}")
+    GitSync(settings).run(f"pipeline 协同产出: {args.task[:50]} ({run_id})")
 
 
 # ---------------- 项目会话（多轮迭代） ----------------
@@ -237,21 +251,51 @@ async def cmd_project(args):
         console.print(f"[green]当前版本已切换[/] -> 第{r['n']}轮 [{r['agent']}] {r['file']}")
         return
 
-    # ask / iterate：带项目上下文发给模型
+    # ask / iterate：带项目上下文发给模型（4 段式：需求 + 统一框架 + 其他模型近况 + 本轮指示）
     p = _proj(args)
     orch = build_orchestrator(settings)
     await orch.pool.start()
     try:
-        prompt = p.build_prompt(args.instruction)
         if args.action == "ask":
+            prompt = p.build_prompt(args.instruction, multi_agent=[args.extra])
             r = await orch.ask_one(args.extra, prompt)
             show_replies({args.extra: r})
             if r.ok:
                 rec = p.record(args.extra, args.instruction, r.text)
                 console.print(f"[green]已记录[/]: 第{rec['n']}轮 (当前版本)")
+                # 如果模型提了"对统一框架的建议", 记录到统一框架的建议区块
+                self_snippet = r.text[:80]
+                if "对统一框架的建议" in r.text:
+                    fw_path = os.path.join(p.dir, "framework.md")
+                    try:
+                        old = open(fw_path, encoding="utf-8").read() if os.path.exists(fw_path) else ""
+                    except OSError:
+                        old = ""
+                    with open(fw_path, "w", encoding="utf-8") as f:
+                        f.write((old + ("\n\n" if old else "") +
+                                 f"## 建议来源 {p.name} 第{rec['n']}轮 {args.extra}\n"
+                                 + r.text.split("对统一框架的建议", 1)[1].lstrip("：: \n")))
+                    console.print(f"[dim]→ 该模型的【对统一框架的建议】已合并到 framework.md[/]")
         else:  # iterate
             names = args.to or orch.registry.names()
-            replies = await orch.broadcast(prompt, names)
+            # 每个模型单独 build_prompt(带参与的其他模型名单)
+            prompts = {n: p.build_prompt(args.instruction, multi_agent=names) for n in names}
+            # 并发(组间并行 + 组内串行)，不再等用户关页面
+            from browser.pool import BrowserPool
+            # borrow pool 的分桶 + asyncio gather
+            buckets: dict[str, list[str]] = {}
+            for n in names:
+                g = orch.registry.get(n).group
+                buckets.setdefault(g, []).append(n)
+            async def bucket_worker(group_name: str, group_names: list[str]):
+                out = {}
+                for n in group_names:
+                    out[n] = await orch.ask_one(n, prompts[n])
+                return group_name, out
+            results = await asyncio.gather(*(bucket_worker(g, ns) for g, ns in buckets.items()))
+            replies = {}
+            for _, b in results:
+                replies.update(b)
             show_replies(replies)
             for n_, r in replies.items():
                 if r.ok:
