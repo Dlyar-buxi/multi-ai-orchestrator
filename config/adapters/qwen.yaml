@@ -1,0 +1,15 @@
+name: qwen
+group: normal
+url: https://chat.qwen.ai/
+url_match: ["chat.qwen.ai", "tongyi.com"]
+input_selectors:
+  - "textarea#chat-input"
+  - "textarea"
+  - "div[contenteditable='true']"
+send_selectors:
+  - "button[type='submit']"
+send_key: Enter
+assistant_selectors:
+  - ".markdown-body"
+  - "[class*='answer']"
+streaming_hints: []

@@ -1,0 +1,19 @@
+name: claude
+group: private
+url: https://claude.ai/new
+url_match: ["claude.ai"]
+login_hints: ["/login", "/signin"]
+input_selectors:
+  - "div[contenteditable='true'].ProseMirror"
+  - "div[contenteditable='true']"
+send_selectors:
+  - "button[aria-label='发送消息']"
+  - "button[aria-label='Send message']"
+send_key: Enter
+assistant_selectors:
+  - ".font-claude-message"
+  - "[data-testid='assistant-message']"
+  - "div[data-is-streaming='false']"
+streaming_hints:
+  - "button[aria-label='停止']"
+  - "button[aria-label='Stop']"

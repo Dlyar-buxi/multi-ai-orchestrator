@@ -1,0 +1,15 @@
+name: deepseek
+group: normal
+url: https://chat.deepseek.com/
+url_match: ["chat.deepseek.com"]
+login_hints: ["sign_in"]
+input_selectors:
+  - "textarea#chat-input"
+  - "textarea"
+send_selectors:
+  - "div[role='button'].f5f7ba6b"   # 发送按钮为 div，需按实际 DOM 校准
+send_key: Enter
+assistant_selectors:
+  - ".ds-markdown"
+  - ".ds-markdown--block"
+streaming_hints: []

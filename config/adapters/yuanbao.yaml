@@ -1,0 +1,15 @@
+name: yuanbao
+group: normal
+url: https://yuanbao.tencent.com/chat
+url_match: ["yuanbao.tencent.com"]
+input_selectors:
+  - "textarea"
+  - "div[contenteditable='true']"
+send_selectors:
+  - ".style__send-btn___"
+  - "button[class*='send']"
+send_key: Enter
+assistant_selectors:
+  - ".agent-chat__bubble__content"
+  - ".hyc-content"
+streaming_hints: []

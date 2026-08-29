@@ -1,0 +1,32 @@
+# 全局配置 —— 多模型网页版自动协同框架
+browser:
+  # Firefox 特制内核由 Playwright 启动，两个独立实例（任务栏各一个窗口）
+  # private = 隐私版实例（隔离环境）→ ChatGPT / Claude / Codex
+  # normal  = 正常版实例            → 其余站点
+  engine: firefox
+  headless: false
+  groups:
+    private:
+      profile: ./ff_profile_private
+      proxy: socks5://127.0.0.1:1080   # 隐私版实例走本地代理（ChatGPT/Claude 需要代理访问）
+    normal:
+      profile: ./ff_profile_normal
+      proxy: null                       # 正常版直连（国内站点）
+  nav_timeout: 45          # 页面加载超时（秒）
+  reply_timeout: 300       # 等待模型回复总超时（秒）
+  stability_ms: 2500       # 回复文本连续无变化视为生成完毕
+  poll_interval_ms: 800
+
+ollama:
+  enabled: true
+  base_url: http://localhost:11434
+  model: qwen2.5:7b
+
+git:
+  enabled: true
+  repo_dir: .
+  remote: origin
+  branch: main
+  auto_push: true
+
+log_file: ./logs/session.jsonl
