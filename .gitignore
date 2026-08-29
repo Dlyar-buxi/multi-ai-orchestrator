@@ -17,6 +17,10 @@ claude_cookies.json
 github_token.txt
 *.token
 
+# 云端协调员 API key（智谱等）
+zhipu_key.txt
+*_key.txt
+
 # 会话日志（含聊天内容）
 logs/
 *.log

@@ -26,6 +26,13 @@ ollama:
   base_url: http://localhost:11434
   model: qwen2.5:7b
 
+coordinator:
+  # 协调员（任务分解/汇总仲裁）：auto=有云端key用云端,否则本地ollama | ollama | cloud
+  provider: auto
+  api_key_file: zhipu_key.txt    # 智谱key存这里（已gitignore），或环境变量 ZHIPU_API_KEY
+  base_url: https://open.bigmodel.cn/api/paas/v4
+  model: glm-4-flash             # 免费档
+
 git:
   enabled: true
   repo_dir: .

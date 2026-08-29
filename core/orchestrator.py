@@ -8,6 +8,7 @@ from browser.driver import WebAgentDriver
 from browser.pool import BrowserPool
 from core.aggregator import summarize
 from core.models import Reply, SessionLog
+from local_llm.cloud_client import CloudClient
 from local_llm.ollama_client import OllamaClient
 
 DECOMPOSE_PROMPT = """你是项目经理。把下面的任务分解成若干子任务，并指派给最合适的 AI 助手。
@@ -23,7 +24,21 @@ class Orchestrator:
         self.registry = registry
         self.settings = settings
         b = settings["ollama"]
-        self.ollama = OllamaClient(b["base_url"], b["model"], b.get("enabled", True))
+        ollama = OllamaClient(b["base_url"], b["model"], b.get("enabled", True))
+        c = settings.get("coordinator", {})
+        provider = c.get("provider", "auto")  # auto | ollama | cloud
+        cloud = CloudClient(
+            c.get("api_key_file", "zhipu_key.txt"),
+            c.get("base_url", "https://open.bigmodel.cn/api/paas/v4"),
+            c.get("model", "glm-4-flash"),
+        ) if provider in ("auto", "cloud") else None
+        # provider 选择: cloud 优先(有key时)；显式 ollama 则只用本地；cloud 无 key 自动回退 ollama
+        if provider == "ollama":
+            self.ollama = ollama
+        elif cloud and cloud.available():
+            self.ollama = cloud
+        else:
+            self.ollama = ollama
         self.log = SessionLog(settings.get("log_file", "./logs/session.jsonl"))
 
     def _driver(self, name: str) -> WebAgentDriver:
