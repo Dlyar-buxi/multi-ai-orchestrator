@@ -3,15 +3,15 @@ group: normal
 url: https://www.kimi.com/
 url_match: ["kimi.com", "kimi.moonshot.cn"]
 input_selectors:
-  - "textarea.chat-input-input"
+  - "div.chat-input-editor"           # 实测: contenteditable div
+  - ".chat-input-editor"
   - "textarea"
-  - ".ProseMirror[contenteditable='true']"
 send_selectors:
   - "button.send-button"
-  - ".send-button"
 send_key: Enter
 assistant_selectors:
-  - ".markdown-body"
-  - ".message-content"
+  - "[class*='segment-content'] .paragraph"   # 实测: 回复段落容器
+  - ".paragraph"
+  - "[class*='markdown']"
 streaming_hints:
   - ".stop-button"

@@ -199,6 +199,56 @@ async def cmd_pipeline(args):
 
 # ---------------- 入口 ----------------
 
+async def cmd_probe(args):
+    """全站校准：逐站发送测试消息，输出 输入框命中selector/回复抽取/失败原因 诊断表"""
+    from rich.table import Table
+    from browser.driver import WebAgentDriver
+
+    settings = load_settings()
+    settings["browser"]["reply_timeout"] = 120  # 校准用短超时
+    orch = build_orchestrator(settings)
+    reg = orch.registry
+    await orch.pool.start()
+    names = args.to or reg.names()
+
+    async def probe_one(name):
+        a = reg.get(name)
+        drv = WebAgentDriver(orch.pool, a, settings)
+        r = {"name": name, "group": a.group, "input": "-", "reply": "-", "error": ""}
+        try:
+            page = await orch.pool.ensure_page(a)
+            hints = a.__dict__.get("login_hints") or []
+            if any(h in page.url for h in hints):
+                r["error"] = f"未登录({page.url[:40]})"
+                return r
+            r["reply"] = (await drv.ask("只回复两个字：收到"))[:24]
+            r["input"] = drv.last_hit_selector or "?"
+        except Exception as e:
+            if "未找到元素" in str(e):
+                r["input"] = "全部失效"
+                r["error"] = str(e)[:80]
+            else:
+                r["error"] = f"{type(e).__name__}: {str(e)[:70]}"
+        return r
+
+    results = await asyncio.gather(*(probe_one(n) for n in names))
+
+    t = Table(title="站点校准诊断")
+    t.add_column("站点")
+    t.add_column("实例")
+    t.add_column("输入框命中")
+    t.add_column("回复抽取")
+    t.add_column("问题")
+    for r in results:
+        ok = not r["error"]
+        t.add_row(
+            f"[green]{r['name']}[/]" if ok else f"[red]{r['name']}[/]",
+            r["group"], r["input"], r["reply"], r["error"],
+        )
+    console.print(t)
+    await orch.pool.stop()
+
+
 def main():
     p = argparse.ArgumentParser(description="多模型网页版自动协同框架")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -206,6 +256,10 @@ def main():
     s = sub.add_parser("login", help="首次使用：打开双 Firefox 实例与全部站点，人工登录")
     s.add_argument("--wait", type=int, default=600, help="等待登录秒数，默认 600")
     s.set_defaults(fn=cmd_login)
+
+    s = sub.add_parser("probe", help="全站校准诊断（发送测试消息，检查链路）")
+    s.add_argument("--to", nargs="*", help="站点名列表，缺省为全部")
+    s.set_defaults(fn=cmd_probe)
 
     s = sub.add_parser("doctor", help="环境体检")
     s.set_defaults(fn=cmd_doctor)

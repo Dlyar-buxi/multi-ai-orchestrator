@@ -36,7 +36,8 @@ class BrowserPool:
         launcher = getattr(self._pw, self.engine)
         for name, g in self.groups.items():
             os.makedirs(g["profile"], exist_ok=True)
-            kwargs = {"headless": self.headless}
+            kwargs = {"headless": self.headless,
+                      "viewport": {"width": 1600, "height": 900}}  # 宽视口避免站点切移动端布局
             if g["proxy"]:  # Firefox 不吃系统代理，必须显式指定
                 kwargs["proxy"] = {"server": g["proxy"]}
             self.contexts[name] = await launcher.launch_persistent_context(

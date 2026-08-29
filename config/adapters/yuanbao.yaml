@@ -3,13 +3,12 @@ group: normal
 url: https://yuanbao.tencent.com/chat
 url_match: ["yuanbao.tencent.com"]
 input_selectors:
-  - "textarea"
-  - "div[contenteditable='true']"
+  - "div.ql-editor"                    # 实测: Quill 编辑器（可见）
+  - ".ql-editor[contenteditable='true']"
 send_selectors:
-  - ".style__send-btn___"
   - "button[class*='send']"
 send_key: Enter
 assistant_selectors:
-  - ".agent-chat__bubble__content"
-  - ".hyc-content"
+  - "[class*='agent-chat__bubble__content']"
+  - "[class*='hyc-content']"
 streaming_hints: []

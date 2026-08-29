@@ -4,9 +4,10 @@ group: private
 url: https://chatgpt.com/
 url_match: ["chatgpt.com"]
 input_selectors:
+  - "#mobile-composer-prompt"        # Firefox UA 下的 composer（实测命中）
+  - ".wm-composer-textarea"
   - "#prompt-textarea"
   - "textarea[data-testid='prompt-textarea']"
-  - "div[contenteditable='true']"
 send_selectors:
   - "button[data-testid='send-button']"
 send_key: Enter

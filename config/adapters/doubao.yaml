@@ -3,13 +3,13 @@ group: normal
 url: https://www.doubao.com/chat/
 url_match: ["doubao.com/chat"]
 input_selectors:
-  - "textarea[data-testid='chat_input_input']"
-  - "textarea"
+  - "div.tiptap.ProseMirror"          # 实测: tiptap 富文本编辑器
+  - ".ProseMirror[contenteditable='true']"
 send_selectors:
   - "button[data-testid='chat_input_send_button']"
 send_key: Enter
 assistant_selectors:
-  - "[data-testid='receive_message']"
-  - ".message-content-container"
+  - "div[class*='message-list'] div[class*='content-']"   # 实测: hash class 但前缀稳定
+  - "[class*='receive_message']"
 streaming_hints:
   - ".stop-button"

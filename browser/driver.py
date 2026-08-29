@@ -25,18 +25,28 @@ class WebAgentDriver:
         # 不 bring_to_front，避免自动化期间反复抢占你正在用的窗口焦点
 
         baseline = await self._count_assistant_blocks(page)
+        url_before = page.url
         await self._send(page, prompt)
+        # 站点可能因新消息跳转新会话页（如豆包），块数会重置，baseline 失效
+        if page.url != url_before:
+            baseline = 0
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except PWTimeout:
+                pass
         await self._wait_reply(page, baseline)
         return await self._extract(page)
 
     # ---------- 定位 ----------
     async def _locate(self, page: Page, selectors: list[str], timeout: int = 20000) -> Locator:
+        self.last_hit_selector = None
         deadline = time.time() + timeout / 1000
         while time.time() < deadline:
             for sel in selectors:
                 loc = page.locator(sel).last
                 try:
                     if await loc.count() and await loc.is_visible():
+                        self.last_hit_selector = sel
                         return loc
                 except PWTimeout:
                     continue
@@ -51,6 +61,22 @@ class WebAgentDriver:
             return await loc.count()
         except PWTimeout:
             return 0
+
+    async def _last_nonempty_text(self, page: Page) -> str:
+        """倒序找第一个可见且非空的候选块（豆包等站点最后一块是恒空占位行）"""
+        blocks = page.locator(self.adapter.assistant_selectors[0])
+        count = await blocks.count()
+        for i in range(count - 1, max(-1, count - 15), -1):  # 最多回看14块，防超时
+            el = blocks.nth(i)
+            try:
+                if not await el.is_visible():
+                    continue
+                text = (await el.inner_text()).strip()
+                if text:
+                    return text
+            except PWTimeout:
+                continue
+        return ""
 
     # ---------- 发送 ----------
     async def _send(self, page: Page, prompt: str):
@@ -75,17 +101,13 @@ class WebAgentDriver:
         last_text, stable_since = "", None
 
         while time.time() - start < self.reply_timeout:
-            blocks = page.locator(self.adapter.assistant_selectors[0])
-            count = await blocks.count()
+            count = await page.locator(self.adapter.assistant_selectors[0]).count()
             if count > baseline:
-                try:
-                    text = await blocks.nth(count - 1).inner_text()
-                except PWTimeout:
-                    text = ""
+                text = await self._last_nonempty_text(page)
                 if text and text == last_text:
                     if stable_since and time.time() - stable_since >= stable_deadline:
                         return
-                else:
+                elif text:
                     stable_since = time.time()
                     last_text = text
             await asyncio.sleep(self.poll_ms / 1000)
@@ -93,8 +115,7 @@ class WebAgentDriver:
 
     # ---------- 抽取 ----------
     async def _extract(self, page: Page) -> str:
-        blocks = page.locator(self.adapter.assistant_selectors[0])
-        count = await blocks.count()
-        if count == 0:
+        text = await self._last_nonempty_text(page)
+        if not text:
             raise RuntimeError(f"[{self.adapter.name}] 页面上没有可抽取的回复")
-        return (await blocks.nth(count - 1).inner_text()).strip()
+        return text

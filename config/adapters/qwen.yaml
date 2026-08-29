@@ -3,13 +3,12 @@ group: normal
 url: https://chat.qwen.ai/
 url_match: ["chat.qwen.ai", "tongyi.com"]
 input_selectors:
-  - "textarea#chat-input"
-  - "textarea"
-  - "div[contenteditable='true']"
+  - "textarea.message-input-textarea"  # 实测命中
+  - ".message-input-textarea"
 send_selectors:
   - "button[type='submit']"
 send_key: Enter
 assistant_selectors:
-  - ".markdown-body"
-  - "[class*='answer']"
+  - "[class*='markdown']"
+  - "[class*='answer-content']"
 streaming_hints: []
