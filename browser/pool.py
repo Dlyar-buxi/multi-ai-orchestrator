@@ -1,7 +1,7 @@
 """浏览器连接池 —— Firefox 双实例版
 Playwright 无法附加到已打开的普通 Firefox（CDP 仅支持 Chromium 系），
 因此由框架启动两个 Playwright 特制 Firefox 实例（任务栏各一个窗口）：
-  private 实例 → ChatGPT / Claude / Codex（独立 profile，登录态持久）
+  private 实例 → ChatGPT / Claude（独立 profile，登录态持久）
   normal  实例 → 其余站点（独立 profile，登录态持久）
 每个站点按 adapter.group 路由到对应实例；已存在的标签页优先复用。
 """

@@ -1,7 +1,7 @@
 # 全局配置 —— 多模型网页版自动协同框架
 browser:
   # Firefox 特制内核由 Playwright 启动，两个独立实例（任务栏各一个窗口）
-  # private = 隐私版实例（隔离环境）→ ChatGPT / Claude / Codex
+  # private = 隐私版实例（隔离环境）→ ChatGPT / Claude
   # normal  = 正常版实例            → 其余站点
   engine: firefox
   headless: false

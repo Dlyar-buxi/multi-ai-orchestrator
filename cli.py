@@ -74,7 +74,7 @@ async def cmd_login(args):
 
     console.print(Panel(
         "请在两个 Firefox 窗口中完成各站点登录\n"
-        "  隐私版窗口: ChatGPT / Claude / Codex\n"
+        "  隐私版窗口: ChatGPT / Claude\n"
         "  正常版窗口: 豆包 / DeepSeek / Qwen / Kimi / 元宝\n"
         f"框架每 5 秒自动检测，全部就绪或 {args.wait}s 超时后自动保存",
         title="[cyan]人工登录[/]",

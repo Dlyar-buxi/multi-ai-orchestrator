@@ -1,0 +1,15 @@
+name: chatglm
+group: normal
+url: https://chatglm.cn/
+url_match: ["chatglm.cn"]
+input_selectors:
+  - "textarea.scroll-display-none"     # 实测命中
+  - "textarea"
+send_selectors:
+  - "button[class*='send']"
+send_key: Enter
+assistant_selectors:
+  - ".markdown-body"
+  - "[class*='message-content']"
+streaming_hints:
+  - ".stop-button"
